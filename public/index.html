@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>玻璃画效果生成器</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { font-family: Arial; max-width: 800px; margin: 0 auto; padding: 20px; }
+        .upload-area { border: 2px dashed #ccc; padding: 40px; text-align: center; margin: 20px 0; cursor: pointer; }
+        .preview { display: flex; gap: 20px; margin: 20px 0; }
+        .preview img { max-width: 100%; max-height: 300px; border: 1px solid #ddd; }
+        button { background: #007cba; color: white; border: none; padding: 10px 20px; margin: 5px; cursor: pointer; }
+        button:disabled { background: #ccc; }
+        .loading { color: #007cba; display: none; }
+    </style>
+</head>
+<body>
+    <h1>🎨 玻璃画效果生成器</h1>
+    
+    <div class="upload-area" id="uploadArea">
+        <h3>点击选择图片</h3>
+        <input type="file" id="fileInput" accept="image/*" style="display: none;">
+    </div>
+
+    <div>
+        <label>颗粒大小: <span id="sizeValue">200</span></label>
+        <input type="range" id="sizeSlider" min="50" max="500" value="200" style="width: 300px;">
+    </div>
+
+    <div class="preview">
+        <div>
+            <h4>原图</h4>
+            <div id="originalPreview"></div>
+        </div>
+        <div>
+            <h4>效果图</h4>
+            <div id="resultPreview"></div>
+        </div>
+    </div>
+
+    <div class="loading" id="loading">处理中...</div>
+    
+    <button id="processBtn" disabled>生成效果</button>
+    <button id="downloadBtn" disabled>下载图片</button>
+
+    <script>
+        document.getElementById('uploadArea').addEventListener('click', () => {
+            document.getElementById('fileInput').click();
+        });
+
+        document.getElementById('fileInput').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    document.getElementById('originalPreview').innerHTML = `<img src="${e.target.result}">`;
+                    document.getElementById('processBtn').disabled = false;
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        document.getElementById('sizeSlider').addEventListener('input', function() {
+            document.getElementById('sizeValue').textContent = this.value;
+        });
+
+        document.getElementById('processBtn').addEventListener('click', async function() {
+            const file = document.getElementById('fileInput').files[0];
+            if (!file) return;
+
+            document.getElementById('loading').style.display = 'block';
+            this.disabled = true;
+
+            try {
+                const base64 = await new Promise((resolve) => {
+                    const reader = new FileReader();
+                    reader.onload = e => resolve(e.target.result);
+                    reader.readAsDataURL(file);
+                });
+
+                const response = await fetch('/api/process', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        image: base64,
+                        target_width: parseInt(document.getElementById('sizeSlider').value)
+                    })
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    document.getElementById('resultPreview').innerHTML = `<img src="${result.image}">`;
+                    document.getElementById('downloadBtn').disabled = false;
+                    window.lastProcessedImage = result.image;
+                } else {
+                    alert('处理失败: ' + result.message);
+                }
+            } catch (error) {
+                alert('请求失败: ' + error.message);
+            } finally {
+                document.getElementById('loading').style.display = 'none';
+                this.disabled = false;
+            }
+        });
+
+        document.getElementById('downloadBtn').addEventListener('click', function() {
+            if (window.lastProcessedImage) {
+                const link = document.createElement('a');
+                link.href = window.lastProcessedImage;
+                link.download = 'glass-painting.png';
+                link.click();
+            }
+        });
+    </script>
+</body>
+</html>
